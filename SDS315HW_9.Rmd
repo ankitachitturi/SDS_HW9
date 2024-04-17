@@ -1,0 +1,145 @@
+---
+title: "SDS315_HW9"
+output: html_document
+date: "2024-04-09"
+---
+Name: Ankita Chitturi
+
+EID: ac86269
+
+Github: 
+
+```{r setup, include=FALSE}
+file <- 'turnout.csv'
+turnout <- read.csv(file)
+file2 <- 'solder.csv'
+solder <- read.csv(file2)
+library(mosaic)
+library(MatchIt)
+library(tableone)
+library(ggplot2)
+```
+### Question 1
+
+# Part A: How much more likely are GOTV call recipients to have voted in 1998? 
+```{r, echo=FALSE, include=FALSE}
+prop_voters1 <- mean(turnout$GOTV_call == 1 & turnout$voted1998 == 1)
+print(prop_voters1)
+
+prop_voters2 <- mean(turnout$GOTV_call != 1 & turnout$voted1998 == 1)
+print(prop_voters2)
+
+diff_voters = prop_voters1 - prop_voters2
+
+likely_voters = prop_voters1 / prop_voters2
+
+print(likely_voters)
+
+diffprop_voters <- function(turnout) {
+  prop_voters1 <- mean(turnout$GOTV_call == 1 & turnout$voted1998 == 1)
+  prop_voters2 <- mean(turnout$GOTV_call != 1 & turnout$voted1998 == 1)
+  return(prop_voters1 - prop_voters2)
+}
+
+boot_voters_1998 = do(10000)*diffprop_voters(resample(turnout))
+confint(boot_voters_1998, level = .95)
+```
+GOTV_call recipients are approximately 0.034 times more likely to have voted in 1998. This was concluded by finding the proportion of voters who received and call and voted (prop_voters1) as well as the proportion of voters who didn't receive a call but still voted (prop_voters2) and divide these proportions (prop_voters1 / prop_voters2).
+
+
+# Part B:  Provide evidence that at all three of these variables are confounders that prevent the difference you observed in Part A from representing the true causal effect of the GOTV call on the likelihood that a person voted in 1998.
+```{r, echo=FALSE, include=FALSE}
+base_model <- lm(voted1998 ~ GOTV_call, data = turnout)
+confounder_model <- lm(voted1998 ~ GOTV_call + voted1996 + AGE + MAJORPTY, data = turnout)
+
+summary(base_model)
+summary(confounder_model)
+
+summary(base_model)$adj.r.squared
+summary(confounder_model)$adj.r.squared
+```
+
+A base model (first model) is created where GOTV_call is the predictor. Similarly, a confounder model (second model) is created where GOTV_call, voted1996, AGE, and MAJORPTY are all included. In the second model, the coefficient estimate for GOTV_call decreases from 0.2035 to 0.0967, suggesting that after controlling the variables (voted1996, MAJORPTY, and AGE), the effect size of GOTV_call on the likelihood of voting in 1998 still reduced. In the same model, GOTV_call is statistically significant (p-value < 0.001), indicating that receiving a call has a strong association with the likelihood of voting in 1998. Even still, the association is smaller than the first model.
+Moreover, the R.squared value for the second model increases from 0.0037 in the first model to 0.2006 in the second model. This suggests that the second model explains a larger proportion of the variability in the voted1998 variable compared to the first model.
+The results provide evidence that the variables AGE, MAJORPTY, and voted1996 are confounders in the relationship between voting in 1998 and receiving a GOTV_Call. 
+
+
+# Part C: What do you conclude about the overall effect of the GOTV call on the likelihood of voting in the 1998 election?
+```{r, echo=FALSE, include=FALSE}
+matched_data <- matchit(GOTV_call ~ voted1996 + AGE + MAJORPTY, data = turnout, ratio = 5)
+
+matched_data <- match.data(matched_data, data=turnout)
+
+before_balance <- CreateTableOne(vars = c("voted1996", "AGE", "MAJORPTY", "voted1998"), data=turnout)
+after_balance <- CreateTableOne(vars = c("voted1996", "AGE", "MAJORPTY", "voted1998"), strata="GOTV_call",data=matched_data)
+print(before_balance, smd=TRUE)
+print(after_balance, smd=TRUE)
+
+prop_e <- mean(matched_data$GOTV_call == 1 & matched_data$voted1998 == 1)
+prop_f <- mean(matched_data$GOTV_call == 0 & matched_data$voted1998 == 1)
+
+prop_g <- prop_e - prop_f
+
+prop_function <- function(matched_data) {
+  prop_1 <- mean(matched_data$GOTV_call == 1 & matched_data$voted1998 == 1)
+  prop_2 <- mean(matched_data$GOTV_call == 0 & matched_data$voted1998 == 1)
+  return(prop_1-prop_2)
+}
+
+boot_1998 <- do(10000) * prop_function(resample(matched_data))
+confint(boot_1998, level=0.95)
+```
+It can be concluded that receiving a GOTV_call is associated with a high likelihood of voting in the 1998 election. The proportion of individuals who received a call and voted in the election was approximately 65%. Conversely, in a group of individuals who did not receive a call, the proportion of people who voted in 1998 was around 57%. Since the confidence interval does not include 0, it suggests that there is a statistically significant different in the likelihood of voting in 1998 between the two groups. Since the interval is entirely negative (-0.404 to -0.336), it indicates that people who received a call were more likely to vote in the election compared to those who didn't receive a call. These results suggests that GOTV_call has a positive effect on the likelihood of voting in the 1998 election. 
+
+
+### Question 2
+
+# Part A: The first plot should provide evidence that the size of the opening on the solder gun is related to the number of skips. The second should provide evidence that the thickness of the alloy used for soldering is related to the number of skips
+```{r, echo=FALSE}
+ggplot(solder, aes(x=Opening, y=skips)) + geom_point(color="pink3") +
+  labs(title="Relationship between Number of Skips and Opening Size", x="Size of Opening", y="Number of Skips") + theme_classic()
+
+ggplot(solder, aes(x=Solder, y=skips)) + geom_point(color="aquamarine4") +
+  labs(title="Relationship between Number of Skips and Alloy Thickness", x="Thickness of Alloy", y="Number of Skips") + theme_classic()
+
+```
+
+The first plot shows the relationship between the number of skips and opening size. As displayed, the smaller opening size has the greatest number of skips and the largest opening size is associated with the smallest number of skips. In simpler terms, as the opening size increases, the number of skips decreases (inverse relationship). The second plot depicts the relationship between the number of skips and alloy thickness. A thin alloy has a higher number of skips than a thick alloy.
+
+
+# Part B: Build a regression model with skips as the outcome. 
+```{r, echo=FALSE}
+model <- lm(skips ~ Opening * Solder, data = solder)
+
+coefficients <- summary(model)$coefficients
+conf_intervals <- confint(model)
+
+table_data <- data.frame(
+  Coefficient = rownames(coefficients),
+  Estimate = coefficients[, 1],
+  Lower_CI = conf_intervals[, 1],
+  Upper_CI = conf_intervals[, 2]
+)
+
+print(table_data)
+```
+
+A regression model was built with main effects and an interaction term. A table (which is shown) was generated which depicts estimates and their 95% confidence intervals for the coefficients in the model. 
+
+# Part C: Interpret each estimand coefficient in your model in no more than 1-2 sentences. A good template here is provided in the course packet, when we fit a model for the video games that had an interaction in it and interpreted each coefficient in a sentance or two.
+Intercept (estimand coefficient): This represents a baseline value of response variables when the other predictors are 0. The estimand coefficient suggests that the response variable is around 0.39 with a 95% confidence interval ranging from around -0.63 to 1.41.
+
+OpeningM (estimand coefficient): With every unit increase in the OpeningM variable, the response variable will increase by around 2.4 units with a 95% confidence interval ranging from 0.96 to 3.85.
+
+OpeningS (estimand coefficient): With every unit increase in the OpeningS variable, the response variable increases by 5.12 units with a 95% confidence interval ranging from 3.68 to 6.57.
+
+SolderThin (estimand coefficient): With every unit increase in SolderThin variable, the response variable increases by around 2.28 units, with 95% confidence interval ranging from 0.84 to 3.72.
+
+OpeningM:SolderThin (estimand coefficient): This indicates change in response variable for each unit increase in OpeningM when SolderThin increases by 1 unit. The estimand coefficient is around -0.74, meaning that the effect of OpeningM on response variable decreases by around 0.74 unirs for each unit increase in SolderThin, with a 95% confidence interval ranging from -2.78 to 1.30.
+
+OpeningS:SolderThin (estimand coefficient): This indicates a change in the response variable for each unit increase in OpeningS when SolderThin increases by a single unit. The estimand coefficient is around 9.65, meaning that the effect of OpeningS on the response variable increases by about 9.65 units for each unit icnrease in SolderThin, with a 95% confidence interval ranging from around 7.61 to 11.70. 
+
+
+# Part D: If you had to recommend a combination of Opening size and Solder thickness to AT&T based on this analysis, which one would it be, and why? (Remember, the goal is to minimize the number of skips in the manufacturing process.)
+
+I would recommend OpeningL and SolderThick to minimize the number of skips in the manufacturing process. OpeningL has a greater positive impact on reducing skips compared to OpeningM which is indicated by the higher coefficient for OpeningL. SolderThick also contributes positively to reducing skips which is suggested by its coefficient. The conclusion was based off the understanding that larger openings and thicker solder contribute significiantly to reducing skips. 
